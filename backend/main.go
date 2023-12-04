@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // models
@@ -40,9 +42,31 @@ type ListItemResponse struct {
 	Items []TodoItem `json:"items"`
 }
 
+type LoginResponse struct {
+	Msg string `json:"msg"`
+	Status int `json:"status"`
+	User string `json:"user"`
+}
+
+type Credentials struct {
+	Password string `json:"password"`
+	Username string `json:"username"`
+}
+
+type Claims struct {
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
+
+var jwtKey = []byte("")
 
 // model
 var todoMap = map[int]TodoItem{}
+
+var users = map[string]string {
+	"user1": "password1",
+	"user2": "password2",
+}
 
 // handlers
 func createItem(w http.ResponseWriter, req *http.Request){
@@ -50,7 +74,9 @@ func createItem(w http.ResponseWriter, req *http.Request){
 	if (*req).Method == "OPTIONS" {
 		return
 	}
-	
+	// check jwt validity
+	getUser(w, req)
+
 	decode := json.NewDecoder(req.Body)
 	
 	request := ItemCreateRequest{}
@@ -82,6 +108,8 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 	if (*req).Method == "OPTIONS" {
 		return
 	}
+	// check jwt validity
+	getUser(w, req)
 
 	decode := json.NewDecoder(req.Body)
 	request := ItemDeleteRequest{}
@@ -141,6 +169,8 @@ func listItem(w http.ResponseWriter, req *http.Request){
 	if (*req).Method == "OPTIONS" {
 		return
 	}
+	// check jwt validity
+	getUser(w, req)
 
 	items := make([]TodoItem,0)
 	
@@ -164,12 +194,164 @@ func listItem(w http.ResponseWriter, req *http.Request){
 	fmt.Fprintf(w, "%s", string(res))
 }
 
+func Signin(w http.ResponseWriter, req *http.Request) {
+	enableCors(&w)
+	if (*req).Method == "OPTIONS" {
+		return
+	}
+
+	var creds Credentials
+	err := json.NewDecoder(req.Body).Decode(&creds)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return 
+	}
+	expectedPassword, ok := users[creds.Username]
+	if !ok || expectedPassword != creds.Password {
+		w.WriteHeader(http.StatusUnauthorized)
+		return 
+	}
+
+	expirationTime := time.Now().Add(15 * time.Minute)
+	claims := Claims{
+		Username: creds.Username, 
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return 
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: "token", 
+		Value: tokenString, 
+		Expires: expirationTime,
+	})
+
+	var response = LoginResponse{
+		Msg: "Success",
+		User: creds.Username,
+		Status: http.StatusOK,
+	}
+
+	res, _ := json.Marshal(response)
+	fmt.Fprintf(w, "%s", string(res))
+
+}
+
+func Refresh(w http.ResponseWriter, req *http.Request) {
+	enableCors(&w)
+	if (*req).Method == "OPTIONS" {
+		return
+	}
+
+	c, err := req.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			w.WriteHeader(http.StatusUnauthorized)		
+			return 
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return 
+	}
+	tknStr := c.Value 
+	claims := &Claims{}
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token)(any, error) {
+		return jwtKey, nil 
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return 
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	if !tkn.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return 
+	}
+
+	if time.Until(claims.ExpiresAt.Time) < 30*time.Second {
+		w.WriteHeader(http.StatusBadRequest)
+		return 
+	}
+	// now, create a new token for the current use, wit a renewed expiration 
+	expirationTime := time.Now().Add(15 * time.Minute)
+	claims.ExpiresAt = jwt.NewNumericDate(expirationTime)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return 
+	}
+
+	// set the new token as the users `token` cookie 
+	http.SetCookie(w, &http.Cookie{
+		Name: "token",
+		Value: tokenString, 
+		Expires: expirationTime,
+	})
+	
+}
+func Logout(w http.ResponseWriter, req *http.Request) {
+	enableCors(&w)
+	if (*req).Method == "OPTIONS" {
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name: "token",
+		Expires: time.Now(),
+	})
+}
+
+// check jwt validity 
+func getUser(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tknStr := c.Value 
+	claims := &Claims{}
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (any, error) {
+		return jwtKey, nil 
+	})
+
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return 
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return 
+	}
+}
+
 func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "*")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	(*w).Header().Set("Access-Control-Allow-Credentials", "true")
 }
 func main() {
+	
+	http.HandleFunc("/signin", Signin)
+	http.HandleFunc("/refresh", Refresh)
+	http.HandleFunc("/logout", Logout)
+
 	http.HandleFunc("/create", createItem)
 	http.HandleFunc("/delete", deleteItem)
 	http.HandleFunc("/update", updateItem)
