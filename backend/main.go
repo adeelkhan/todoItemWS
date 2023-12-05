@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // models
 type TodoItem struct {
-	Id int `json:"Id"`
+	Id string `json:"Id"`
 	ItemName string `json:"item_name"` 
 	CreateTimeStamp time.Time `json:"create_timestamp"`
 	UpdateTimeStamp time.Time `json:"update_timestamp"`
@@ -23,11 +24,11 @@ type ItemCreateRequest struct {
 }
 
 type ItemDeleteRequest struct {
-	Id int `json:"item_id"`
+	Id string `json:"item_id"`
 }
 
 type ItemUpdateRequest struct {
-	Id int `json:"item_id"`
+	Id string `json:"item_id"`
 	ItemName string `json:"item_name"`
 }
 
@@ -58,14 +59,39 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+type UserProfile struct {
+	UserName string
+	Password string
+	todoItem map[string]string
+}
+
 var jwtKey = []byte("")
 
 // model
-var todoMap = map[int]TodoItem{}
+var todoMap = map[string]TodoItem{}
 
-var users = map[string]string {
-	"user1": "password1",
-	"user2": "password2",
+var users = map[string]*UserProfile {
+	"user1": {
+		UserName: "user1",
+		Password: "password1",
+	},
+	"user2": {
+		UserName: "user2",
+		Password: "password2",
+	},
+}
+
+func addItem(username, itemId string, todo *TodoItem) {
+	todoMap[itemId] = *todo
+	if users[username].todoItem == nil {
+		users[username].todoItem = make(map[string]string, 1)
+	}
+	users[username].todoItem[itemId] = itemId
+}
+
+func removeItem(username, itemId string) {
+	delete(todoMap, itemId)
+	delete(users[username].todoItem, itemId)
 }
 
 // handlers
@@ -75,8 +101,7 @@ func createItem(w http.ResponseWriter, req *http.Request){
 		return
 	}
 	// check jwt validity
-	getUser(w, req)
-
+	username := getUser(w, req)
 	decode := json.NewDecoder(req.Body)
 	
 	request := ItemCreateRequest{}
@@ -85,17 +110,17 @@ func createItem(w http.ResponseWriter, req *http.Request){
 		fmt.Fprintln(w, err.Error())
 	}
 
+	itemId := uuid.NewString()
 	createTime := time.Now() 
 	var todo = TodoItem{
-		Id: len(todoMap) + 1,
+		Id: itemId,
 		ItemName: request.ItemName,
 		CreateTimeStamp: createTime,
 		UpdateTimeStamp: createTime,
 	}
-
 	fmt.Println(todo)
+	addItem(username, itemId, &todo)
 
-	todoMap[todo.Id] = todo
 	res ,_ := json.Marshal(ItemResponse{
 		Msg: "Success",
 		Status: http.StatusCreated,
@@ -109,7 +134,7 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 		return
 	}
 	// check jwt validity
-	getUser(w, req)
+	username := getUser(w, req)
 
 	decode := json.NewDecoder(req.Body)
 	request := ItemDeleteRequest{}
@@ -117,12 +142,8 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 	if err != nil {
 		fmt.Fprintln(w, err.Error())
 	}
-	for _,v := range todoMap {
-		if request.Id == v.Id {
-			delete(todoMap, v.Id)
-			break
-		}
-	}
+	removeItem(username, request.Id)
+	delete(todoMap, request.Id)
 
 	res ,_ := json.Marshal(ItemResponse{
 		Msg: "Success",
@@ -143,14 +164,8 @@ func updateItem(w http.ResponseWriter, req *http.Request){
 		fmt.Fprintln(w, err.Error())
 	}
 
-	var Id int
-	for _,v := range todoMap {
-		if request.Id == v.Id {
-			Id = v.Id
-			break
-		}
-	}
-	if Id != 0 {
+	var Id string
+	if Id != "" {
 		todoMap[Id] = TodoItem{
 			Id: Id,
 			ItemName: request.ItemName,
@@ -170,18 +185,23 @@ func listItem(w http.ResponseWriter, req *http.Request){
 		return
 	}
 	// check jwt validity
-	getUser(w, req)
+	username := getUser(w, req)
+	userProfile := users[username]
+
 
 	items := make([]TodoItem,0)
-	
-	for _, v := range todoMap {
-		todo := TodoItem{
-			Id: v.Id,
-			ItemName: v.ItemName,
-			CreateTimeStamp: v.CreateTimeStamp,
-			UpdateTimeStamp: v.UpdateTimeStamp,
+
+	for _, itemsId := range userProfile.todoItem {
+		v, ok := todoMap[itemsId]
+		if ok {
+			todo := TodoItem{
+				Id: v.Id,
+				ItemName: v.ItemName,
+				CreateTimeStamp: v.CreateTimeStamp,
+				UpdateTimeStamp: v.UpdateTimeStamp,
+			}
+			items = append(items, todo)
 		}
-		items = append(items, todo)
 	}
 
 	var response = ListItemResponse{
@@ -206,8 +226,13 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return 
 	}
-	expectedPassword, ok := users[creds.Username]
-	if !ok || expectedPassword != creds.Password {
+	userProfile, ok := users[creds.Username]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if creds.Password != userProfile.Password {
 		w.WriteHeader(http.StatusUnauthorized)
 		return 
 	}
@@ -310,15 +335,15 @@ func Logout(w http.ResponseWriter, req *http.Request) {
 }
 
 // check jwt validity 
-func getUser(w http.ResponseWriter, r *http.Request) {
+func getUser(w http.ResponseWriter, r *http.Request) string {
 	c, err := r.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
 			w.WriteHeader(http.StatusUnauthorized)
-			return
+			return ""
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return ""
 	}
 	tknStr := c.Value 
 	claims := &Claims{}
@@ -329,15 +354,16 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
 			w.WriteHeader(http.StatusUnauthorized)
-			return 
+			return ""
 		}
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return ""
 	}
 	if !tkn.Valid {
 		w.WriteHeader(http.StatusUnauthorized)
-		return 
+		return ""
 	}
+	return claims.Username
 }
 
 func enableCors(w *http.ResponseWriter) {
