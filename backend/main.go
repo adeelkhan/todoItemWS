@@ -383,5 +383,6 @@ func main() {
 	http.HandleFunc("/update", updateItem)
 	http.HandleFunc("/list", listItem)
 	
+	fmt.Println("Server started on port 8090")
 	http.ListenAndServe(":8090", nil)
 }

@@ -1,0 +1,15 @@
+services:
+  frontend:
+    build: ./todo-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./todo-frontend:/app
+    depends_on:
+      - backend
+  backend:
+    build: ./backend
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./backend:/app
