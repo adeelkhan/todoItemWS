@@ -112,7 +112,7 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <div>
       <div>Todoapp</div>
       <h1>UserName: {username}</h1>
       <div>

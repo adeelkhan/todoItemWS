@@ -71,12 +71,12 @@ var jwtKey = []byte("")
 var todoMap = map[string]TodoItem{}
 
 var users = map[string]*UserProfile {
-	"user1": {
-		UserName: "user1",
+	"user1@abc.com": {
+		UserName: "user1@abc.com",
 		Password: "password1",
 	},
-	"user2": {
-		UserName: "user2",
+	"user2@abc.com": {
+		UserName: "user2@abc.com",
 		Password: "password2",
 	},
 }
