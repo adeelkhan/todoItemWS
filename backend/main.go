@@ -164,7 +164,7 @@ func updateItem(w http.ResponseWriter, req *http.Request){
 		fmt.Fprintln(w, err.Error())
 	}
 
-	var Id string
+	var Id string = request.Id
 	if Id != "" {
 		todoMap[Id] = TodoItem{
 			Id: Id,
@@ -237,7 +237,7 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 		return 
 	}
 
-	expirationTime := time.Now().Add(15 * time.Minute)
+	expirationTime := time.Now().Add(30 * time.Minute)
 	claims := Claims{
 		Username: creds.Username, 
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -305,7 +305,7 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 		return 
 	}
 	// now, create a new token for the current use, wit a renewed expiration 
-	expirationTime := time.Now().Add(15 * time.Minute)
+	expirationTime := time.Now().Add(30 * time.Minute)
 	claims.ExpiresAt = jwt.NewNumericDate(expirationTime)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)

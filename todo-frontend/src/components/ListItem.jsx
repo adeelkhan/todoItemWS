@@ -113,44 +113,80 @@ function App() {
 
   return (
     <div>
-      <div>Todoapp</div>
-      <h1>UserName: {username}</h1>
-      <div>
-        <input value={todoItem} onChange={(e) => editTodoItem(e)} />
-        <button onClick={() => createTodoItem()}>Add Item</button>
-      </div>
-      <ul>
-        {items &&
-          items.map((item) => {
-            return (
-              <li key={item.Id} onClick={() => setUpdateBox(item.Id)}>
-                {item.item_name}
-                <button onClick={() => deleteTodoItem(item.Id)}>X</button>
-                {IsItemEditable(item.Id) && (
-                  <>
-                    <input
-                      value={newItemValue}
-                      onChange={(e) => editNewItemValue(e)}
-                    />
-                    <button
-                      onClick={() => updateTodoItem(item.Id, item.item_name)}
-                    >
-                      Edit
-                    </button>
-                    <button onClick={() => removeUpdateBox(item.Id)}>
-                      Close
-                    </button>
-                  </>
-                )}
-              </li>
-            );
-          })}
-      </ul>
-      <>
-        <a href="" onClick={logOut}>
-          Logout
-        </a>
-      </>
+      <header>
+        <div className="flex justify-between bg-slate-900 h-10 items-center">
+          <div>
+            <img
+              className="mx-auto h-10 w-auto"
+              src="https://tailwindui.com/img/logos/mark.svg?color=indigo&shade=600"
+              alt="Your Company"
+            />
+          </div>
+          <div>Todo App</div>
+          <div>
+            <a
+              href=""
+              onClick={logOut}
+              className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+            >
+              Logout
+            </a>
+          </div>
+        </div>
+      </header>
+      <main>
+        <h1>UserName: {username}</h1>
+        <div>
+          <input
+            value={todoItem}
+            onChange={(e) => editTodoItem(e)}
+            className="rounded-xl"
+          />
+          <button
+            onClick={() => createTodoItem()}
+            className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+          >
+            Add Item
+          </button>
+        </div>
+        <ul>
+          {items &&
+            items.map((item) => {
+              return (
+                <li key={item.Id} onClick={() => setUpdateBox(item.Id)}>
+                  <button
+                    onClick={() => deleteTodoItem(item.Id)}
+                    className="lg:inline-block py-1 px-1 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+                  >
+                    X
+                  </button>
+                  {item.item_name}
+                  {IsItemEditable(item.Id) && (
+                    <>
+                      <input
+                        value={newItemValue}
+                        onChange={(e) => editNewItemValue(e)}
+                      />
+                      <button
+                        onClick={() => updateTodoItem(item.Id, item.item_name)}
+                        className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => removeUpdateBox(item.Id)}
+                        className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+                      >
+                        Close
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+        </ul>
+      </main>
+      <footer></footer>
     </div>
   );
 }
