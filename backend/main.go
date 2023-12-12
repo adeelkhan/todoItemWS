@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -203,6 +204,11 @@ func listItem(w http.ResponseWriter, req *http.Request){
 			items = append(items, todo)
 		}
 	}
+
+	sort.SliceStable(items, func(i,j int) bool {
+		return items[i].CreateTimeStamp.Unix() < items[j].CreateTimeStamp.Unix()
+	}) 
+
 
 	var response = ListItemResponse{
 		Msg: "Success",

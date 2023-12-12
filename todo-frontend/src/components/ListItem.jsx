@@ -9,7 +9,7 @@ function App() {
   const [todoItem, setTodoItem] = useState("");
   const [items, setItems] = useState([]);
   const [itemUpdated, setItemUpdated] = useState(false);
-  const [updateBox, setShowUpdateBox] = useState([]);
+  const [updateBox, setShowUpdateBox] = useState("");
   const [newItemValue, setNewItemValue] = useState("");
   const { username } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -43,11 +43,9 @@ function App() {
       .get("http://localhost:8090/list", {
         withCredentials: true,
       })
-      .then((data) => {
-        data = data.data;
-        data.items.sort((a, b) => {
-          return a.Id - b.Id;
-        });
+      .then((response) => {
+        console.log(response.data);
+        let data = response.data;
         setItems(data.items);
         setItemUpdated(false);
       });
@@ -82,26 +80,13 @@ function App() {
       )
       .then((response) => {
         setNewItemValue("");
-        removeUpdateBox(Id);
+        setShowUpdateBox("");
         setItemUpdated(true);
       });
   };
 
-  const setUpdateBox = (Id) => {
-    let updateList = [...updateBox];
-    let found = updateList.includes(Id);
-    if (!found) {
-      updateList.push(Id);
-      setShowUpdateBox(updateList);
-    }
-  };
-  const removeUpdateBox = (Id) => {
-    let updateList = [...updateBox].filter((e) => e !== Id);
-    setShowUpdateBox(updateList);
-  };
-
   const IsItemEditable = (Id) => {
-    return updateBox.includes(Id);
+    return updateBox && updateBox === Id;
   };
 
   const editNewItemValue = (e) => {
@@ -135,16 +120,15 @@ function App() {
         </div>
       </header>
       <main>
-        <h1>UserName: {username}</h1>
         <div>
           <input
             value={todoItem}
             onChange={(e) => editTodoItem(e)}
-            className="rounded-xl"
+            className="rounded-xl py-1"
           />
           <button
             onClick={() => createTodoItem()}
-            className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+            className="lg:inline-block py-1 px-2 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
           >
             Add Item
           </button>
@@ -153,29 +137,33 @@ function App() {
           {items &&
             items.map((item) => {
               return (
-                <li key={item.Id} onClick={() => setUpdateBox(item.Id)}>
+                <li key={item.Id}>
                   <button
                     onClick={() => deleteTodoItem(item.Id)}
                     className="lg:inline-block py-1 px-1 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
                   >
                     X
                   </button>
-                  {item.item_name}
+                  <span onClick={() => setShowUpdateBox(item.Id)}>
+                    {item.item_name}
+                  </span>
+
                   {IsItemEditable(item.Id) && (
                     <>
                       <input
                         value={newItemValue}
                         onChange={(e) => editNewItemValue(e)}
+                        className="rounded-xl py-1"
                       />
                       <button
                         onClick={() => updateTodoItem(item.Id, item.item_name)}
-                        className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+                        className="lg:inline-block py-1 px-2 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => removeUpdateBox(item.Id)}
-                        className="lg:inline-block py-2 px-6 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
+                        onClick={() => setShowUpdateBox("")}
+                        className="lg:inline-block py-1 px-2 bg-blue-500 hover:bg-blue-600 text-sm text-white font-bold rounded-xl transition duration-200"
                       >
                         Close
                       </button>
