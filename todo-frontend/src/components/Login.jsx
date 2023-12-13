@@ -2,10 +2,12 @@ import axios from "axios";
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../AuthContext";
+import showErrorBanner from "./Error";
 
 const Login = () => {
   const [userName, setUserName] = useState("");
   const [userPassword, setUserPassword] = useState("");
+  const [error, setError] = useState();
   const navigate = useNavigate();
 
   const { setAuthUser } = useContext(AuthContext);
@@ -32,6 +34,15 @@ const Login = () => {
       .then((response) => {
         setAuthUser(response.data.user);
         navigate("/list");
+      })
+      .catch(({ response }) => {
+        if (response.status == 401) {
+          setError("Invalid username or password");
+        } else if (response.status == 400) {
+          setError(
+            "Something unexpected happened: Please try after few minutes"
+          );
+        }
       });
   };
 
@@ -44,6 +55,7 @@ const Login = () => {
             src="https://tailwindui.com/img/logos/mark.svg?color=indigo&shade=600"
             alt="Your Company"
           />
+          {error && showErrorBanner(error)}
           <h2 className="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
             Sign in to your account
           </h2>

@@ -4,6 +4,7 @@ import { useState, useEffect, useContext } from "react";
 import axios from "axios";
 import { AuthContext } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
+import showErrorBanner from "./Error";
 
 function App() {
   const [todoItem, setTodoItem] = useState("");
@@ -12,12 +13,20 @@ function App() {
   const [updateBox, setShowUpdateBox] = useState("");
   const [newItemValue, setNewItemValue] = useState("");
   const { username } = useContext(AuthContext);
+  const [error, setError] = useState();
   const navigate = useNavigate();
 
   const editTodoItem = (e) => {
     setTodoItem(e.target.value);
   };
 
+  const processError = (response) => {
+    if (response.status == 401) {
+      navigate("/login");
+    } else if (response.status == 400) {
+      setError("Something unexpected happened");
+    }
+  };
   const createTodoItem = () => {
     if (todoItem === "") {
       return;
@@ -35,6 +44,9 @@ function App() {
       .then((response) => {
         setItemUpdated(true);
         setTodoItem("");
+      })
+      .catch(({ response }) => {
+        processError(response);
       });
   };
 
@@ -44,10 +56,12 @@ function App() {
         withCredentials: true,
       })
       .then((response) => {
-        console.log(response.data);
         let data = response.data;
         setItems(data.items);
         setItemUpdated(false);
+      })
+      .error(({ response }) => {
+        processError(response);
       });
   }, [itemUpdated]);
 
@@ -64,6 +78,9 @@ function App() {
       )
       .then((response) => {
         setItemUpdated(true);
+      })
+      .error(({ response }) => {
+        processError(response);
       });
   };
   const updateTodoItem = (Id, name) => {
@@ -82,6 +99,9 @@ function App() {
         setNewItemValue("");
         setShowUpdateBox("");
         setItemUpdated(true);
+      })
+      .error(({ response }) => {
+        processError(response);
       });
   };
 
@@ -120,6 +140,7 @@ function App() {
         </div>
       </header>
       <main>
+        {error && showErrorBanner(error)}
         <div>
           <input
             value={todoItem}
