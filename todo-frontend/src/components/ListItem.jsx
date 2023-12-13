@@ -23,7 +23,7 @@ function App() {
   const processError = (response) => {
     if (response.status == 401) {
       navigate("/login");
-    } else if (response.status == 400) {
+    } else if (response.status === 400) {
       setError("Something unexpected happened");
     }
   };
@@ -60,7 +60,7 @@ function App() {
         setItems(data.items);
         setItemUpdated(false);
       })
-      .error(({ response }) => {
+      .catch(({ response }) => {
         processError(response);
       });
   }, [itemUpdated]);
@@ -79,11 +79,16 @@ function App() {
       .then((response) => {
         setItemUpdated(true);
       })
-      .error(({ response }) => {
+      .catch(({ response }) => {
         processError(response);
       });
   };
   const updateTodoItem = (Id, name) => {
+    if (newItemValue == "") {
+      alert("Todo item cannot be empty");
+      return;
+    }
+
     axios
       .post(
         "http://localhost:8090/update",
@@ -100,7 +105,7 @@ function App() {
         setShowUpdateBox("");
         setItemUpdated(true);
       })
-      .error(({ response }) => {
+      .catch(({ response }) => {
         processError(response);
       });
   };
