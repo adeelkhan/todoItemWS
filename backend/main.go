@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"time"
+
+	"log/slog"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+var handler = slog.NewJSONHandler(os.Stdout, nil)
+var logger = slog.New(handler)
 
 // models
 type TodoItem struct {
@@ -108,6 +114,7 @@ func createItem(w http.ResponseWriter, req *http.Request){
 	request := ItemCreateRequest{}
 	err := decode.Decode(&request)
 	if err != nil {
+		logger.Error(err.Error())
 		fmt.Fprintln(w, err.Error())
 	}
 
@@ -119,8 +126,14 @@ func createItem(w http.ResponseWriter, req *http.Request){
 		CreateTimeStamp: createTime,
 		UpdateTimeStamp: createTime,
 	}
-	fmt.Println(todo)
 	addItem(username, itemId, &todo)
+
+	logger.Info("Item created successfully",
+		slog.String("Item Id#", todo.Id),
+		slog.String("item Name", todo.ItemName),
+		slog.Time("Created At", todo.CreateTimeStamp),
+		slog.Time("Updated At", todo.UpdateTimeStamp),
+	)
 
 	res ,_ := json.Marshal(ItemResponse{
 		Msg: "Success",
@@ -141,10 +154,14 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 	request := ItemDeleteRequest{}
 	err := decode.Decode(&request)
 	if err != nil {
+		logger.Error(err.Error())
 		fmt.Fprintln(w, err.Error())
 	}
 	removeItem(username, request.Id)
 	delete(todoMap, request.Id)
+	logger.Info("Item deleted successfully",
+		slog.String("Item Id#", request.Id),
+	)
 
 	res ,_ := json.Marshal(ItemResponse{
 		Msg: "Success",
@@ -162,6 +179,7 @@ func updateItem(w http.ResponseWriter, req *http.Request){
 	request := ItemUpdateRequest{}
 	err := decode.Decode(&request)
 	if err != nil {
+		logger.Error(err.Error())
 		fmt.Fprintln(w, err.Error())
 	}
 
@@ -174,12 +192,17 @@ func updateItem(w http.ResponseWriter, req *http.Request){
 			UpdateTimeStamp: time.Now(),
 		}
 	}
+	logger.Info("Item updated successfully",
+		slog.String("Item Id#", request.Id),
+	)
+
 	res ,_ := json.Marshal(ItemResponse{
 		Msg: "Success",
 		Status: http.StatusOK,
 	})
 	fmt.Fprintf(w, "%s", string(res))
 }
+
 func listItem(w http.ResponseWriter, req *http.Request){
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
@@ -229,16 +252,19 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	var creds Credentials
 	err := json.NewDecoder(req.Body).Decode(&creds)
 	if err != nil {
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return 
 	}
 	userProfile, ok := users[creds.Username]
 	if !ok {
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
 	if creds.Password != userProfile.Password {
+		logger.Error("Invalid credentials passed")
 		w.WriteHeader(http.StatusUnauthorized)
 		return 
 	}
@@ -254,6 +280,7 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return 
 	}
@@ -283,9 +310,11 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	c, err := req.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
+			logger.Error(err.Error())
 			w.WriteHeader(http.StatusUnauthorized)		
 			return 
 		}
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return 
 	}
@@ -296,17 +325,20 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	})
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
+			logger.Error(err.Error())
 			w.WriteHeader(http.StatusUnauthorized)
 			return 
 		}
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	if !tkn.Valid {
+		logger.Error("Token invalid")
 		w.WriteHeader(http.StatusUnauthorized)
 		return 
 	}
 
 	if time.Until(claims.ExpiresAt.Time) < 30*time.Second {
+		logger.Error("Token refresh request is too close to expiry time")
 		w.WriteHeader(http.StatusBadRequest)
 		return 
 	}
@@ -316,6 +348,7 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return 
 	}
@@ -345,9 +378,11 @@ func getUser(w http.ResponseWriter, r *http.Request) string {
 	c, err := r.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
+			logger.Error(err.Error())
 			w.WriteHeader(http.StatusUnauthorized)
 			return ""
 		}
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return ""
 	}
@@ -359,13 +394,16 @@ func getUser(w http.ResponseWriter, r *http.Request) string {
 
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
+			logger.Error(err.Error())
 			w.WriteHeader(http.StatusUnauthorized)
 			return ""
 		}
+		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return ""
 	}
 	if !tkn.Valid {
+		logger.Error("Token invalid")
 		w.WriteHeader(http.StatusUnauthorized)
 		return ""
 	}
@@ -389,6 +427,6 @@ func main() {
 	http.HandleFunc("/update", updateItem)
 	http.HandleFunc("/list", listItem)
 	
-	fmt.Println("Server started on port 8090")
+	logger.Info("Server starting on port 8090")
 	http.ListenAndServe(":8090", nil)
 }
