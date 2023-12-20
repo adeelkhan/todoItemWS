@@ -88,7 +88,7 @@ var users = map[string]*UserProfile {
 	},
 }
 
-func addItem(username, itemId string, todo *TodoItem) {
+func AddItem(username, itemId string, todo *TodoItem) {
 	todoMap[itemId] = *todo
 	if users[username].todoItem == nil {
 		users[username].todoItem = make(map[string]string, 1)
@@ -96,13 +96,13 @@ func addItem(username, itemId string, todo *TodoItem) {
 	users[username].todoItem[itemId] = itemId
 }
 
-func removeItem(username, itemId string) {
+func RemoveItem(username, itemId string) {
 	delete(todoMap, itemId)
 	delete(users[username].todoItem, itemId)
 }
 
 // handlers
-func createItem(w http.ResponseWriter, req *http.Request){
+func CreateItem(w http.ResponseWriter, req *http.Request){
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -126,7 +126,7 @@ func createItem(w http.ResponseWriter, req *http.Request){
 		CreateTimeStamp: createTime,
 		UpdateTimeStamp: createTime,
 	}
-	addItem(username, itemId, &todo)
+	AddItem(username, itemId, &todo)
 
 	logger.Info("Item created successfully",
 		slog.String("Item Id#", todo.Id),
@@ -142,7 +142,7 @@ func createItem(w http.ResponseWriter, req *http.Request){
 	fmt.Fprintf(w, "%s", string(res))
 }
 
-func deleteItem(w http.ResponseWriter, req *http.Request){
+func DeleteItem(w http.ResponseWriter, req *http.Request){
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -157,7 +157,7 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 		logger.Error(err.Error())
 		fmt.Fprintln(w, err.Error())
 	}
-	removeItem(username, request.Id)
+	RemoveItem(username, request.Id)
 	delete(todoMap, request.Id)
 	logger.Info("Item deleted successfully",
 		slog.String("Item Id#", request.Id),
@@ -169,7 +169,7 @@ func deleteItem(w http.ResponseWriter, req *http.Request){
 	})
 	fmt.Fprintf(w, "%s", string(res))
 }
-func updateItem(w http.ResponseWriter, req *http.Request){
+func UpdateItem(w http.ResponseWriter, req *http.Request){
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -203,7 +203,7 @@ func updateItem(w http.ResponseWriter, req *http.Request){
 	fmt.Fprintf(w, "%s", string(res))
 }
 
-func listItem(w http.ResponseWriter, req *http.Request){
+func ListItem(w http.ResponseWriter, req *http.Request){
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -422,10 +422,10 @@ func main() {
 	http.HandleFunc("/refresh", Refresh)
 	http.HandleFunc("/logout", Logout)
 
-	http.HandleFunc("/create", createItem)
-	http.HandleFunc("/delete", deleteItem)
-	http.HandleFunc("/update", updateItem)
-	http.HandleFunc("/list", listItem)
+	http.HandleFunc("/create", CreateItem)
+	http.HandleFunc("/delete", DeleteItem)
+	http.HandleFunc("/update", UpdateItem)
+	http.HandleFunc("/list", ListItem)
 	
 	logger.Info("Server starting on port 8090")
 	http.ListenAndServe(":8090", nil)
