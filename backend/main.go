@@ -19,15 +19,15 @@ var logger = slog.New(handler)
 
 // models
 type TodoItem struct {
-	Id string `json:"Id"`
-	ItemName string `json:"item_name"` 
+	Id              string    `json:"Id"`
+	ItemName        string    `json:"item_name"`
 	CreateTimeStamp time.Time `json:"create_timestamp"`
 	UpdateTimeStamp time.Time `json:"update_timestamp"`
 }
 
 // request/response structures
 type ItemCreateRequest struct {
-	ItemName string  `json:"item_name"`
+	ItemName string `json:"item_name"`
 }
 
 type ItemDeleteRequest struct {
@@ -35,25 +35,25 @@ type ItemDeleteRequest struct {
 }
 
 type ItemUpdateRequest struct {
-	Id string `json:"item_id"`
+	Id       string `json:"item_id"`
 	ItemName string `json:"item_name"`
 }
 
 type ItemResponse struct {
-	Msg string `json:"msg"`
-	Status int `json:"status"`
+	Msg    string `json:"msg"`
+	Status int    `json:"status"`
 }
 
 type ListItemResponse struct {
-	Msg string `json:"msg"`
-	Status int `json:"status"`
-	Items []TodoItem `json:"items"`
+	Msg    string     `json:"msg"`
+	Status int        `json:"status"`
+	Items  []TodoItem `json:"items"`
 }
 
 type LoginResponse struct {
-	Msg string `json:"msg"`
-	Status int `json:"status"`
-	User string `json:"user"`
+	Msg    string `json:"msg"`
+	Status int    `json:"status"`
+	User   string `json:"user"`
 }
 
 type Credentials struct {
@@ -77,7 +77,7 @@ var jwtKey = []byte("")
 // model
 var todoMap = map[string]TodoItem{}
 
-var users = map[string]*UserProfile {
+var users = map[string]*UserProfile{
 	"user1@abc.com": {
 		UserName: "user1@abc.com",
 		Password: "password1",
@@ -102,7 +102,7 @@ func RemoveItem(username, itemId string) {
 }
 
 // handlers
-func CreateItem(w http.ResponseWriter, req *http.Request){
+func CreateItem(w http.ResponseWriter, req *http.Request) {
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -110,7 +110,7 @@ func CreateItem(w http.ResponseWriter, req *http.Request){
 	// check jwt validity
 	username := getUser(w, req)
 	decode := json.NewDecoder(req.Body)
-	
+
 	request := ItemCreateRequest{}
 	err := decode.Decode(&request)
 	if err != nil {
@@ -119,10 +119,10 @@ func CreateItem(w http.ResponseWriter, req *http.Request){
 	}
 
 	itemId := uuid.NewString()
-	createTime := time.Now() 
+	createTime := time.Now()
 	var todo = TodoItem{
-		Id: itemId,
-		ItemName: request.ItemName,
+		Id:              itemId,
+		ItemName:        request.ItemName,
 		CreateTimeStamp: createTime,
 		UpdateTimeStamp: createTime,
 	}
@@ -135,14 +135,14 @@ func CreateItem(w http.ResponseWriter, req *http.Request){
 		slog.Time("Updated At", todo.UpdateTimeStamp),
 	)
 
-	res ,_ := json.Marshal(ItemResponse{
-		Msg: "Success",
+	res, _ := json.Marshal(ItemResponse{
+		Msg:    "Success",
 		Status: http.StatusCreated,
 	})
 	fmt.Fprintf(w, "%s", string(res))
 }
 
-func DeleteItem(w http.ResponseWriter, req *http.Request){
+func DeleteItem(w http.ResponseWriter, req *http.Request) {
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -163,13 +163,13 @@ func DeleteItem(w http.ResponseWriter, req *http.Request){
 		slog.String("Item Id#", request.Id),
 	)
 
-	res ,_ := json.Marshal(ItemResponse{
-		Msg: "Success",
+	res, _ := json.Marshal(ItemResponse{
+		Msg:    "Success",
 		Status: http.StatusOK,
 	})
 	fmt.Fprintf(w, "%s", string(res))
 }
-func UpdateItem(w http.ResponseWriter, req *http.Request){
+func UpdateItem(w http.ResponseWriter, req *http.Request) {
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -186,8 +186,8 @@ func UpdateItem(w http.ResponseWriter, req *http.Request){
 	var Id string = request.Id
 	if Id != "" {
 		todoMap[Id] = TodoItem{
-			Id: Id,
-			ItemName: request.ItemName,
+			Id:              Id,
+			ItemName:        request.ItemName,
 			CreateTimeStamp: todoMap[Id].CreateTimeStamp,
 			UpdateTimeStamp: time.Now(),
 		}
@@ -196,14 +196,14 @@ func UpdateItem(w http.ResponseWriter, req *http.Request){
 		slog.String("Item Id#", request.Id),
 	)
 
-	res ,_ := json.Marshal(ItemResponse{
-		Msg: "Success",
+	res, _ := json.Marshal(ItemResponse{
+		Msg:    "Success",
 		Status: http.StatusOK,
 	})
 	fmt.Fprintf(w, "%s", string(res))
 }
 
-func ListItem(w http.ResponseWriter, req *http.Request){
+func ListItem(w http.ResponseWriter, req *http.Request) {
 	enableCors(&w)
 	if (*req).Method == "OPTIONS" {
 		return
@@ -212,15 +212,14 @@ func ListItem(w http.ResponseWriter, req *http.Request){
 	username := getUser(w, req)
 	userProfile := users[username]
 
-
-	items := make([]TodoItem,0)
+	items := make([]TodoItem, 0)
 
 	for _, itemsId := range userProfile.todoItem {
 		v, ok := todoMap[itemsId]
 		if ok {
 			todo := TodoItem{
-				Id: v.Id,
-				ItemName: v.ItemName,
+				Id:              v.Id,
+				ItemName:        v.ItemName,
 				CreateTimeStamp: v.CreateTimeStamp,
 				UpdateTimeStamp: v.UpdateTimeStamp,
 			}
@@ -228,15 +227,14 @@ func ListItem(w http.ResponseWriter, req *http.Request){
 		}
 	}
 
-	sort.SliceStable(items, func(i,j int) bool {
+	sort.SliceStable(items, func(i, j int) bool {
 		return items[i].CreateTimeStamp.Unix() < items[j].CreateTimeStamp.Unix()
-	}) 
-
+	})
 
 	var response = ListItemResponse{
-		Msg: "Success",
+		Msg:    "Success",
 		Status: http.StatusOK,
-		Items: items,
+		Items:  items,
 	}
 
 	res, _ := json.Marshal(response)
@@ -254,7 +252,7 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
-		return 
+		return
 	}
 	userProfile, ok := users[creds.Username]
 	if !ok {
@@ -266,12 +264,12 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	if creds.Password != userProfile.Password {
 		logger.Error("Invalid credentials passed")
 		w.WriteHeader(http.StatusUnauthorized)
-		return 
+		return
 	}
 
 	expirationTime := time.Now().Add(30 * time.Minute)
 	claims := Claims{
-		Username: creds.Username, 
+		Username: creds.Username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -282,17 +280,17 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		logger.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		return 
+		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "token", 
-		Value: tokenString, 
+		Name:    "token",
+		Value:   tokenString,
 		Expires: expirationTime,
 	})
 
 	var response = LoginResponse{
-		Msg: "Success",
-		User: creds.Username,
+		Msg:    "Success",
+		User:   creds.Username,
 		Status: http.StatusOK,
 	}
 
@@ -311,38 +309,38 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		if err == http.ErrNoCookie {
 			logger.Error(err.Error())
-			w.WriteHeader(http.StatusUnauthorized)		
-			return 
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
 		logger.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
-		return 
+		return
 	}
-	tknStr := c.Value 
+	tknStr := c.Value
 	claims := &Claims{}
-	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token)(any, error) {
-		return jwtKey, nil 
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (any, error) {
+		return jwtKey, nil
 	})
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
 			logger.Error(err.Error())
 			w.WriteHeader(http.StatusUnauthorized)
-			return 
+			return
 		}
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	if !tkn.Valid {
 		logger.Error("Token invalid")
 		w.WriteHeader(http.StatusUnauthorized)
-		return 
+		return
 	}
 
 	if time.Until(claims.ExpiresAt.Time) < 30*time.Second {
 		logger.Error("Token refresh request is too close to expiry time")
 		w.WriteHeader(http.StatusBadRequest)
-		return 
+		return
 	}
-	// now, create a new token for the current use, wit a renewed expiration 
+	// now, create a new token for the current use, wit a renewed expiration
 	expirationTime := time.Now().Add(30 * time.Minute)
 	claims.ExpiresAt = jwt.NewNumericDate(expirationTime)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -350,16 +348,16 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		logger.Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		return 
+		return
 	}
 
-	// set the new token as the users `token` cookie 
+	// set the new token as the users `token` cookie
 	http.SetCookie(w, &http.Cookie{
-		Name: "token",
-		Value: tokenString, 
+		Name:    "token",
+		Value:   tokenString,
 		Expires: expirationTime,
 	})
-	
+
 }
 func Logout(w http.ResponseWriter, req *http.Request) {
 	enableCors(&w)
@@ -368,12 +366,12 @@ func Logout(w http.ResponseWriter, req *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name: "token",
+		Name:    "token",
 		Expires: time.Now(),
 	})
 }
 
-// check jwt validity 
+//  check jwt validity
 func getUser(w http.ResponseWriter, r *http.Request) string {
 	c, err := r.Cookie("token")
 	if err != nil {
@@ -386,10 +384,10 @@ func getUser(w http.ResponseWriter, r *http.Request) string {
 		w.WriteHeader(http.StatusBadRequest)
 		return ""
 	}
-	tknStr := c.Value 
+	tknStr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (any, error) {
-		return jwtKey, nil 
+		return jwtKey, nil
 	})
 
 	if err != nil {
@@ -411,13 +409,13 @@ func getUser(w http.ResponseWriter, r *http.Request) string {
 }
 
 func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+	(*w).Header().Set("Access-Control-Allow-Origin", "http://localhost:8080")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	(*w).Header().Set("Access-Control-Allow-Credentials", "true")
 }
 func main() {
-	
+
 	http.HandleFunc("/signin", Signin)
 	http.HandleFunc("/refresh", Refresh)
 	http.HandleFunc("/logout", Logout)
@@ -426,7 +424,7 @@ func main() {
 	http.HandleFunc("/delete", DeleteItem)
 	http.HandleFunc("/update", UpdateItem)
 	http.HandleFunc("/list", ListItem)
-	
-	logger.Info("Server starting on port 8090")
-	http.ListenAndServe(":8090", nil)
+
+	logger.Info("Server starting on port 8091")
+	http.ListenAndServe(":8091", nil)
 }

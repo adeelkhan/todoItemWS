@@ -7,7 +7,7 @@ const LogOut = () => {
   const navigate = useNavigate();
   const { setAuthUser } = useContext(AuthContext);
   useEffect(() => {
-    axios.get("http://localhost:8090/logout").then(() => {
+    axios.get(`http://${window.location.hostname}:8090/logout`).then(() => {
       setAuthUser("");
       navigate("/login");
     });

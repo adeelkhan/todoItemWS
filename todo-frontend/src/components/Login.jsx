@@ -22,7 +22,7 @@ const Login = () => {
   const LoginUser = () => {
     axios
       .post(
-        "http://localhost:8090/signin",
+        `http://${window.location.hostname}:8090/signin`,
         {
           username: userName,
           password: userPassword,

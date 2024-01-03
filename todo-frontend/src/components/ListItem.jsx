@@ -33,7 +33,7 @@ function App() {
     }
     axios
       .post(
-        "http://localhost:8090/create",
+        `http://${window.location.hostname}:8090/create`,
         {
           item_name: todoItem,
         },
@@ -52,7 +52,7 @@ function App() {
 
   useEffect(() => {
     axios
-      .get("http://localhost:8090/list", {
+      .get(`http://${window.location.hostname}:8090/list`, {
         withCredentials: true,
       })
       .then((response) => {
@@ -68,7 +68,7 @@ function App() {
   const deleteTodoItem = (Id) => {
     axios
       .post(
-        "http://localhost:8090/delete",
+        `http://${window.location.hostname}:8090/delete`,
         {
           item_id: Id,
         },
@@ -91,7 +91,7 @@ function App() {
 
     axios
       .post(
-        "http://localhost:8090/update",
+        `http://${window.location.hostname}:8090/update`,
         {
           item_id: Id,
           item_name: newItemValue,
