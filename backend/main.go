@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"sort"
@@ -10,8 +8,12 @@ import (
 
 	"log/slog"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	// "github.com/rs/cors"
+	cors "github.com/rs/cors/wrapper/gin"
 )
 
 var handler = slog.NewJSONHandler(os.Stdout, nil)
@@ -102,20 +104,16 @@ func RemoveItem(username, itemId string) {
 }
 
 // handlers
-func CreateItem(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
-	}
+func CreateItem(c *gin.Context) {
+
 	// check jwt validity
-	username := getUser(w, req)
-	decode := json.NewDecoder(req.Body)
+	username := getUser(c)
 
 	request := ItemCreateRequest{}
-	err := decode.Decode(&request)
-	if err != nil {
+	if err := c.BindJSON(&request); err != nil {
 		logger.Error(err.Error())
-		fmt.Fprintln(w, err.Error())
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, check payload"})
+		return
 	}
 
 	itemId := uuid.NewString()
@@ -135,52 +133,41 @@ func CreateItem(w http.ResponseWriter, req *http.Request) {
 		slog.Time("Updated At", todo.UpdateTimeStamp),
 	)
 
-	res, _ := json.Marshal(ItemResponse{
+	res := ItemResponse{
 		Msg:    "Success",
 		Status: http.StatusCreated,
-	})
-	fmt.Fprintf(w, "%s", string(res))
+	}
+	c.IndentedJSON(http.StatusCreated, res)
 }
 
-func DeleteItem(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
+func DeleteItem(ctx *gin.Context) {
+	request := ItemDeleteRequest{}
+	if err := ctx.BindJSON(&request); err != nil {
+		logger.Error(err.Error())
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, check payload"})
 		return
 	}
-	// check jwt validity
-	username := getUser(w, req)
 
-	decode := json.NewDecoder(req.Body)
-	request := ItemDeleteRequest{}
-	err := decode.Decode(&request)
-	if err != nil {
-		logger.Error(err.Error())
-		fmt.Fprintln(w, err.Error())
-	}
+	// check jwt validity
+	username := getUser(ctx)
+
 	RemoveItem(username, request.Id)
 	delete(todoMap, request.Id)
 	logger.Info("Item deleted successfully",
 		slog.String("Item Id#", request.Id),
 	)
 
-	res, _ := json.Marshal(ItemResponse{
+	res := ItemResponse{
 		Msg:    "Success",
 		Status: http.StatusOK,
-	})
-	fmt.Fprintf(w, "%s", string(res))
-}
-func UpdateItem(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
 	}
-
-	decode := json.NewDecoder(req.Body)
+	ctx.IndentedJSON(http.StatusOK, res)
+}
+func UpdateItem(ctx *gin.Context) {
 	request := ItemUpdateRequest{}
-	err := decode.Decode(&request)
-	if err != nil {
+	if err := ctx.BindJSON(&request); err != nil {
 		logger.Error(err.Error())
-		fmt.Fprintln(w, err.Error())
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, check payload"})
 	}
 
 	var Id string = request.Id
@@ -196,20 +183,16 @@ func UpdateItem(w http.ResponseWriter, req *http.Request) {
 		slog.String("Item Id#", request.Id),
 	)
 
-	res, _ := json.Marshal(ItemResponse{
+	res := ItemResponse{
 		Msg:    "Success",
 		Status: http.StatusOK,
-	})
-	fmt.Fprintf(w, "%s", string(res))
+	}
+	ctx.IndentedJSON(http.StatusOK, res)
 }
 
-func ListItem(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
-	}
+func ListItem(ctx *gin.Context) {
 	// check jwt validity
-	username := getUser(w, req)
+	username := getUser(ctx)
 	userProfile := users[username]
 
 	items := make([]TodoItem, 0)
@@ -236,35 +219,24 @@ func ListItem(w http.ResponseWriter, req *http.Request) {
 		Status: http.StatusOK,
 		Items:  items,
 	}
-
-	res, _ := json.Marshal(response)
-	fmt.Fprintf(w, "%s", string(res))
+	ctx.IndentedJSON(http.StatusOK, response)
 }
 
-func Signin(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
-	}
-
+func Signin(c *gin.Context) {
 	var creds Credentials
-	err := json.NewDecoder(req.Body).Decode(&creds)
-	if err != nil {
+	if err := c.BindJSON(&creds); err != nil {
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, check your input"})
 	}
 	userProfile, ok := users[creds.Username]
 	if !ok {
-		logger.Error(err.Error())
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+		logger.Error("Invalid Credentials, requested user not found")
+		c.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Username/password is incorrect"})
 	}
 
 	if creds.Password != userProfile.Password {
 		logger.Error("Invalid credentials passed")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+		c.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Username/password is incorrect"})
 	}
 
 	expirationTime := time.Now().Add(30 * time.Minute)
@@ -279,44 +251,28 @@ func Signin(w http.ResponseWriter, req *http.Request) {
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Something unexpected happened, try again."})
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
-		Value:   tokenString,
-		Expires: expirationTime,
-	})
+	c.SetCookie("token", tokenString, 60*30, "/", "", false, false)
 
-	var response = LoginResponse{
+	response := LoginResponse{
 		Msg:    "Success",
 		User:   creds.Username,
 		Status: http.StatusOK,
 	}
-
-	res, _ := json.Marshal(response)
-	fmt.Fprintf(w, "%s", string(res))
-
+	c.IndentedJSON(http.StatusOK, response)
 }
 
-func Refresh(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
-	}
-
-	c, err := req.Cookie("token")
+func Refresh(ctx *gin.Context) {
+	tknStr, err := ctx.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
 			logger.Error(err.Error())
-			w.WriteHeader(http.StatusUnauthorized)
-			return
+			ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 		}
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, invalid jwt"})
 	}
-	tknStr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (any, error) {
 		return jwtKey, nil
@@ -324,21 +280,18 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
 			logger.Error(err.Error())
-			w.WriteHeader(http.StatusUnauthorized)
-			return
+			ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 		}
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, invalid jwt"})
 	}
 	if !tkn.Valid {
-		logger.Error("Token invalid")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+		logger.Error("Invalid Jwt token")
+		ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 	}
 
 	if time.Until(claims.ExpiresAt.Time) < 30*time.Second {
 		logger.Error("Token refresh request is too close to expiry time")
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, invalid jwt"})
 	}
 	// now, create a new token for the current use, wit a renewed expiration
 	expirationTime := time.Now().Add(30 * time.Minute)
@@ -347,44 +300,28 @@ func Refresh(w http.ResponseWriter, req *http.Request) {
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		ctx.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Something unexpected happened, try again."})
 	}
-
-	// set the new token as the users `token` cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
-		Value:   tokenString,
-		Expires: expirationTime,
-	})
+	ctx.SetCookie("token", tokenString, expirationTime.Minute(), "/", "", false, false)
 
 }
-func Logout(w http.ResponseWriter, req *http.Request) {
-	enableCors(&w)
-	if (*req).Method == "OPTIONS" {
-		return
-	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
-		Expires: time.Now(),
-	})
+func Logout(ctx *gin.Context) {
+	ctx.SetCookie("token", "", 0, "/", "", false, false)
 }
 
 //  check jwt validity
-func getUser(w http.ResponseWriter, r *http.Request) string {
-	c, err := r.Cookie("token")
+func getUser(ctx *gin.Context) string {
+	tknStr, err := ctx.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
 			logger.Error(err.Error())
-			w.WriteHeader(http.StatusUnauthorized)
+			ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 			return ""
 		}
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, invalid jwt"})
 		return ""
 	}
-	tknStr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (any, error) {
 		return jwtKey, nil
@@ -393,38 +330,42 @@ func getUser(w http.ResponseWriter, r *http.Request) string {
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
 			logger.Error(err.Error())
-			w.WriteHeader(http.StatusUnauthorized)
+			ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 			return ""
 		}
 		logger.Error(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request, invalid jwt"})
 		return ""
 	}
 	if !tkn.Valid {
-		logger.Error("Token invalid")
-		w.WriteHeader(http.StatusUnauthorized)
+		logger.Error("Invalid Jwt token")
+		ctx.IndentedJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Jwt"})
 		return ""
 	}
 	return claims.Username
 }
+func setupRouter() *gin.Engine {
+	router := gin.Default()
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost"},
+		AllowedMethods:   []string{"PUT", "PATCH", "POST", "OPTIONS", "DELETE"},
+		AllowedHeaders:   []string{"Origin"},
+		ExposedHeaders:   []string{"Content-Length"},
+		AllowCredentials: true,
+		Debug:            true,
+	})
+	router.Use(c)
+	router.POST("/signin", Signin)
+	router.POST("/refresh", Refresh)
+	router.POST("/create", CreateItem)
+	router.POST("/update", UpdateItem)
+	router.POST("/delete", DeleteItem)
+	router.GET("/list", ListItem)
 
-func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "http://localhost:8080")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	(*w).Header().Set("Access-Control-Allow-Credentials", "true")
+	return router
 }
 func main() {
-
-	http.HandleFunc("/signin", Signin)
-	http.HandleFunc("/refresh", Refresh)
-	http.HandleFunc("/logout", Logout)
-
-	http.HandleFunc("/create", CreateItem)
-	http.HandleFunc("/delete", DeleteItem)
-	http.HandleFunc("/update", UpdateItem)
-	http.HandleFunc("/list", ListItem)
-
+	router := setupRouter()
 	logger.Info("Server starting on port 8091")
-	http.ListenAndServe(":8091", nil)
+	router.Run("localhost:8091")
 }
